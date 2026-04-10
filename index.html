@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>PESTEL_Sim</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "jspdf": "https://esm.sh/jspdf@2.5.1"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <header class="titlebar" role="banner">
+      <div class="brand-left">Powered by ITCPO</div>
+      <div class="brand-center" aria-hidden="true"></div>
+      <div class="title">PESTEL_Sim</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="resetBtn" class="icon-btn" aria-label="Reiniciar">⟲</button>
+      </div>
+    </header>
+
+    <!-- Floating help button -->
+    <button id="helpBtn" class="help-fab" aria-expanded="false" aria-controls="helpPanel" aria-label="Ayuda">?</button>
+
+    <!-- Help panel (hidden by default) -->
+    <aside id="helpPanel" class="help-panel" role="dialog" aria-hidden="true">
+      <h3>Método PESTEL - Resumen</h3>
+      <p style="margin:6px 0 10px 0;font-size:13px;color:var(--text)">
+        PESTEL es un marco para analizar factores externos que afectan a una organización: 
+        Político, Económico, Social, Tecnológico, Ecológico y Legal. Ayuda a identificar riesgos, 
+        oportunidades y prioridades estratégicas fuera del control directo de la empresa.
+      </p>
+
+      <h4 style="margin:6px 0 6px 0;font-size:13px;font-weight:700">Cómo usar esta aplicación</h4>
+      <ul style="margin:0 0 10px 18px;font-size:13px;color:var(--text);line-height:1.35">
+        <li>Para cada factor, asigne un Impacto de 1 (bajo) a 5 (alto) según su repercusión.</li>
+        <li>Use el campo de Descripción/Observaciones para anotar evidencias, fuentes o acciones recomendadas.</li>
+        <li>Pulse "Generar" para crear un resumen estructurado; use "Datos de ejemplo" para cargar un caso de demostración.</li>
+        <li>Puede copiar o descargar el análisis para compartirlo con su equipo.</li>
+      </ul>
+
+      <h4 style="margin:6px 0 6px 0;font-size:13px;font-weight:700">Ejemplo</h4>
+      <p style="margin:6px 0 10px 0;font-size:13px;color:var(--text)">
+        Ejemplo rápido: si la economía muestra inflación alta (Económico = 5) y la tecnología de competidores avanza rápido (Tecnológico = 4),
+        la aplicación priorizará esas áreas y sugerirá medidas de mitigación como revisión de precios, cobertura financiera y estrategia tecnológica.
+      </p>
+
+      <p style="margin:6px 0 10px 0;font-size:12px;color:rgba(17,18,20,0.6)">
+        Consejo: rellene al menos los puntajes antes de generar para obtener un resumen significativo.
+      </p>
+
+      <button id="closeHelp" class="secondary" style="width:100%;">Cerrar</button>
+
+      <div style="font-size:12px;color:rgba(17,18,20,0.6);margin-top:10px">
+        © Carlos Alfredo Castillo Flores - ITCPO - 2026
+      </div>
+    </aside>
+
+    <main class="grid" role="main">
+      <div class="matrix">
+        <div class="cell header">Factor</div>
+        <div class="cell header">Impacto<br>(1-5)</div>
+        <div class="cell header">Descripción / Observaciones</div>
+
+        <div class="cell label">Político</div>
+        <div class="cell"><input type="number" min="1" max="5" data-key="political-score" class="score"></div>
+        <div class="cell"><textarea data-key="political-note" class="note" placeholder="Escribe observaciones políticas..."></textarea></div>
+
+        <div class="cell label">Económico</div>
+        <div class="cell"><input type="number" min="1" max="5" data-key="economic-score" class="score"></div>
+        <div class="cell"><textarea data-key="economic-note" class="note" placeholder="Escribe observaciones económicas..."></textarea></div>
+
+        <div class="cell label">Social</div>
+        <div class="cell"><input type="number" min="1" max="5" data-key="social-score" class="score"></div>
+        <div class="cell"><textarea data-key="social-note" class="note" placeholder="Escribe observaciones sociales..."></textarea></div>
+
+        <div class="cell label">Tecnológico</div>
+        <div class="cell"><input type="number" min="1" max="5" data-key="tech-score" class="score"></div>
+        <div class="cell"><textarea data-key="tech-note" class="note" placeholder="Escribe observaciones tecnológicas..."></textarea></div>
+
+        <div class="cell label">Ecológico</div>
+        <div class="cell"><input type="number" min="1" max="5" data-key="env-score" class="score"></div>
+        <div class="cell"><textarea data-key="env-note" class="note" placeholder="Escribe observaciones medioambientales..."></textarea></div>
+
+        <div class="cell label">Legal</div>
+        <div class="cell"><input type="number" min="1" max="5" data-key="legal-score" class="score"></div>
+        <div class="cell"><textarea data-key="legal-note" class="note" placeholder="Escribe observaciones legales..."></textarea></div>
+      </div>
+
+      <aside class="panel" aria-labelledby="analysisLabel">
+        <div class="panel-top">
+          <h2 id="analysisLabel">Análisis generado</h2>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button id="sampleBtn" class="secondary" aria-label="Datos de ejemplo" title="Cargar datos de ejemplo">Datos de ejemplo</button>
+            <button id="generateBtn" class="primary">Generar</button>
+          </div>
+        </div>
+        <div id="output" class="output" aria-live="polite"></div>
+        <div class="panel-actions">
+          <button id="copyBtn" class="secondary">Copiar</button>
+          <button id="downloadBtn" class="secondary">Generar PDF</button>
+          <button id="saveJsonBtn" class="secondary" title="Guardar datos del análisis en JSON">Guardar JSON</button>
+          <button id="loadJsonBtn" class="secondary" title="Cargar datos del análisis desde un archivo JSON">Cargar JSON</button>
+        </div>
+        <!-- Hidden file input used to load JSON analysis files -->
+        <input id="jsonFileInput" type="file" accept="application/json" style="display:none" />
+        <div class="copyright" aria-hidden="false">© Carlos Alfredo Castillo Flores - ITCPO - 2026</div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
