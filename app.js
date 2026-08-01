@@ -32,84 +32,167 @@ function readInputs() {
   return data;
 }
 
-function summarize(data) {
-  // If there's no user-provided scores or notes, return empty (keep template blank)
-  const allEmpty = Object.values(data).every(d => d.score === null && !d.note);
-  if (allEmpty) return '';
+/* ---------------------------------------------------------------------------
+ * Revisor de observaciones (algoritmo heurístico).
+ * Analiza la descripción de cada factor y sugiere mejoras para que el
+ * análisis sea más completo, específico y sustentado.
+ * ------------------------------------------------------------------------- */
+const WEAK_WORDS = ['cambios','cambio','algo','aspectos','aspecto','varios','variaciones','importante','grande','poco','mucho','diversos','relacionado','situación','situacion','condiciones','general','cosas','relevante','diferentes','algunos','ciertos','posible','cierta'];
+const EVIDENCE_WORDS = ['evidencia','fuente','informe','dato','estadístic','estadistic','según','segun','estudio','proyección','proyeccion','normativ','regul','legis','referencia','tasa','indicador'];
+const ACTION_WORDS = ['riesgo','oportunidad','amenaza','mitigación','mitigacion','acción','accion','estrategia','estrategic','seguimiento','monitorizar','plan','medidas','implicación','implicacion','afectar','benefici','objetivo'];
+const NUMBER_PATTERN = /\d/;
+const SEVERITY_WEIGHT = { alta: 30, media: 15, baja: 8 };
 
-  // Build a list including factors without scores (N/D)
-  const withScore = Object.values(data).filter(d => d.score !== null);
-  const withoutScore = Object.values(data).filter(d => d.score === null);
+const unique = arr => [...new Set(arr)];
 
-  // Sort scored factors descending by impact
-  withScore.sort((a, b) => b.score - a.score);
+function reviewNote(label, note) {
+  const suggestions = [];
+  const text = (note || '').trim();
 
-  // Combined ordered list: highest impacts first, then N/D
-  const ordered = withScore.concat(withoutScore);
-
-  const lines = [];
-  lines.push(`Resumen PESTEL — Generado: ${new Date().toLocaleString()}`);
-  lines.push('');
-
-  // Section: Ordered factors with details
-  lines.push('1) Factores ordenados por impacto (mayor a menor):');
-  ordered.forEach(f => {
-    const scoreLabel = f.score === null ? 'N/D' : f.score;
-    const note = f.note ? f.note : 'Sin observaciones';
-    lines.push(`- ${f.label}: Impacto = ${scoreLabel} — ${note}`);
-  });
-  lines.push('');
-
-  // Section: Agrupación por prioridad
-  const high = withScore.filter(x => x.score >= 4);
-  const medium = withScore.filter(x => x.score === 3);
-  const low = withScore.filter(x => x.score <= 2);
-
-  lines.push('2) Agrupación por prioridad:');
-  if (high.length) {
-    lines.push('  Prioridades altas (Impacto 4-5):');
-    high.forEach(h => lines.push(`   • ${h.label} (Impacto ${h.score}) — ${h.note || 'Sin observaciones'}`));
-  } else {
-    lines.push('  Prioridades altas (Impacto 4-5): Ninguna identificada.');
-  }
-  if (medium.length) {
-    lines.push('  Impacto medio (Impacto 3):');
-    medium.forEach(m => lines.push(`   • ${m.label} (Impacto ${m.score}) — ${m.note || 'Sin observaciones'}`));
-  }
-  if (low.length) {
-    lines.push('  Impacto bajo (Impacto 1-2):');
-    low.forEach(l => lines.push(`   • ${l.label} (Impacto ${l.score}) — ${l.note || 'Sin observaciones'}`));
-  }
-  lines.push('');
-
-  // Section: Recommendations synthesized from highest impacts
-  lines.push('3) Recomendaciones sintetizadas:');
-  if (high.length) {
-    high.forEach(h => {
-      lines.push(`- ${h.label}: Priorizar acciones de mitigación y seguimiento (Impacto ${h.score}). Considerar: políticas, recursos o planes contingentes relacionados.`);
-    });
-  } else {
-    lines.push('- No se detectaron prioridades altas; mantener monitoreo regular y revisar cambios de contexto.');
+  if (!text) {
+    suggestions.push({ severity: 'alta', msg: `El factor ${label} no tiene observaciones. Agregue evidencias, contexto y fuentes para que el análisis sea significativo.` });
+    return suggestions;
   }
 
-  // Additional targeted suggestions for medium and low impacts
-  if (medium.length) {
-    lines.push('- Impacto medio: validar acciones tácticas y monitorizar indicadores clave.');
-  }
-  if (low.length) {
-    lines.push('- Impacto bajo: registrar observaciones y revisar periódicamente; baja prioridad operativa.');
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length < 6) {
+    suggestions.push({ severity: 'alta', msg: `La observación de ${label} es muy breve (${words.length} palabra${words.length === 1 ? '' : 's'}). Amplíe con contexto, ejemplos y evidencia concreta.` });
   }
 
-  lines.push('');
-  lines.push('4) Observaciones finales:');
-  lines.push('- Para un informe completo, exporte a PDF o copie este resumen y adjunte fuentes/evidencias relevantes.');
+  const lower = text.toLowerCase();
+  const weakFound = unique(WEAK_WORDS.filter(w => lower.includes(w)));
+  if (weakFound.length) {
+    suggestions.push({ severity: 'media', msg: `La observación de ${label} usa términos genéricos (${weakFound.slice(0, 3).join(', ')}). Mencione cifras, actores, plazos o hechos concretos.` });
+  }
 
-  return lines.join('\n');
+  if (!NUMBER_PATTERN.test(text)) {
+    suggestions.push({ severity: 'media', msg: `La observación de ${label} no incluye datos o cifras. Cuantificar (%, montos, plazos, variaciones) fortalece el análisis.` });
+  }
+
+  if (!EVIDENCE_WORDS.some(w => lower.includes(w))) {
+    suggestions.push({ severity: 'media', msg: `La observación de ${label} no cita fuentes ni evidencias. Agregue referencias (informes, normativas, datos públicos) para sustentar la conclusión.` });
+  }
+
+  if (!ACTION_WORDS.some(w => lower.includes(w))) {
+    suggestions.push({ severity: 'baja', msg: `La observación de ${label} no indica implicaciones para la organización. Señale riesgos u oportunidades y qué acciones conviene considerar.` });
+  }
+
+  return suggestions.slice(0, 4);
 }
 
-function renderOutput(text) {
+function factorQuality(suggestions) {
+  return Math.max(0, 100 - suggestions.reduce((sum, s) => sum + (SEVERITY_WEIGHT[s.severity] || 0), 0));
+}
+
+function generateAnalysis(data) {
+  const reviews = FACTORS.map(f => {
+    const entry = data[f.key];
+    const suggestions = reviewNote(f.label, entry.note);
+    return { ...entry, key: f.key, suggestions, quality: factorQuality(suggestions) };
+  });
+
+  const allEmpty = reviews.every(r => r.score === null && !r.note);
+  if (allEmpty) return { html: '', text: '' };
+
+  const withScore = reviews.filter(r => r.score !== null).sort((a, b) => b.score - a.score);
+  const withoutScore = reviews.filter(r => r.score === null);
+  const ordered = withScore.concat(withoutScore);
+  const high = withScore.filter(r => r.score >= 4);
+  const medium = withScore.filter(r => r.score === 3);
+  const low = withScore.filter(r => r.score <= 2);
+  const overall = Math.round(reviews.reduce((sum, r) => sum + r.quality, 0) / Math.max(1, reviews.length));
+
+  const dateStr = new Date().toLocaleString();
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const sevClass = s => s === 'alta' ? 'alta' : s === 'media' ? 'media' : 'baja';
+  const impactClass = sc => sc === null ? 'nd' : sc >= 4 ? 'high' : sc === 3 ? 'medium' : 'low';
+
+  /* ------------------------- HTML (presentación) ------------------------- */
+  const h = [];
+  h.push('<div class="analysis">');
+  h.push('<div class="analysis-head"><div class="analysis-title">Resumen PESTEL</div><div class="analysis-date">Generado: ' + esc(dateStr) + '</div></div>');
+
+  h.push('<div class="quality">');
+  h.push('<div class="quality-row"><span>Calidad de descripciones</span><strong class="quality-pct">' + overall + '%</strong></div>');
+  h.push('<div class="quality-track"><div class="quality-fill" style="width:' + overall + '%"></div></div>');
+  h.push('<div class="quality-note">' + (overall >= 80 ? 'Buen nivel. Revise las sugerencias de cada factor para afinar el análisis.' : overall >= 50 ? 'Nivel aceptable. Mejore las observaciones marcadas con sugerencias.' : 'Nivel bajo. Amplíe las observaciones para obtener un análisis sólido.') + '</div>');
+  h.push('</div>');
+
+  h.push('<section class="a-section"><h4>Prioridades estratégicas</h4><div class="priorities">');
+  h.push('<span class="tag high">Alto (4-5): ' + (high.length ? high.map(x => x.label).join(', ') : 'Ninguna') + '</span>');
+  h.push('<span class="tag medium">Medio (3): ' + (medium.length ? medium.map(x => x.label).join(', ') : 'Ninguna') + '</span>');
+  h.push('<span class="tag low">Bajo (1-2): ' + (low.length ? low.map(x => x.label).join(', ') : 'Ninguno') + '</span>');
+  if (withoutScore.length) h.push('<span class="tag nd">Sin dato: ' + withoutScore.map(x => x.label).join(', ') + '</span>');
+  h.push('</div></section>');
+
+  h.push('<section class="a-section"><h4>Factores detallados</h4>');
+  ordered.forEach(r => {
+    const ic = impactClass(r.score);
+    h.push('<div class="factor-card ' + ic + '">');
+    h.push('<div class="factor-card-top"><span class="factor-name">' + esc(r.label) + '</span>');
+    h.push('<span class="factor-impact ' + ic + '">' + (r.score === null ? 'N/D' : r.score) + '</span></div>');
+    h.push('<p class="factor-note">' + esc(r.note || 'Sin observaciones.') + '</p>');
+    if (r.suggestions.length) {
+      h.push('<ul class="suggestions">');
+      r.suggestions.forEach(s => {
+        h.push('<li class="sg ' + sevClass(s.severity) + '"><span class="sg-label">' + sevClass(s.severity) + '</span> ' + esc(s.msg) + '</li>');
+      });
+      h.push('</ul>');
+    }
+    h.push('</div>');
+  });
+  h.push('</section>');
+
+  h.push('<section class="a-section"><h4>Recomendaciones</h4><ul class="rec-list">');
+  if (high.length) {
+    high.forEach(x => h.push('<li><strong>' + esc(x.label) + ':</strong> Priorizar acciones de mitigación y seguimiento (impacto ' + x.score + '). Defina planes, recursos y responsables.</li>'));
+  } else {
+    h.push('<li>No se detectaron prioridades altas; mantener monitoreo regular y revisar cambios de contexto.</li>');
+  }
+  if (medium.length) h.push('<li><strong>Impacto medio:</strong> validar acciones tácticas y monitorear indicadores clave.</li>');
+  if (low.length) h.push('<li><strong>Impacto bajo:</strong> registrar observaciones y revisar periódicamente; baja prioridad operativa.</li>');
+  h.push('</ul></section>');
+
+  h.push('<section class="a-section"><h4>Observaciones finales</h4><p>Para un informe completo, exporte a PDF o copie este resumen y adjunte fuentes/evidencias relevantes. Priorice las áreas con impacto 4-5 y documente evidencia para apoyar decisiones.</p></section>');
+  h.push('</div>');
+
+  /* ------------------------- Texto plano (PDF/copia) ------------------------- */
+  const lines = [];
+  lines.push('Resumen PESTEL — Generado: ' + dateStr);
+  lines.push('');
+  lines.push('Calidad de descripciones: ' + overall + '%');
+  lines.push('');
+  lines.push('1) Factores ordenados por impacto (mayor a menor):');
+  ordered.forEach(f => lines.push(`- ${f.label}: Impacto = ${f.score === null ? 'N/D' : f.score} — ${f.note || 'Sin observaciones'}`));
+  lines.push('');
+  lines.push('2) Agrupación por prioridad:');
+  if (high.length) { lines.push('  Prioridades altas (Impacto 4-5):'); high.forEach(hh => lines.push(`   • ${hh.label} (Impacto ${hh.score})`)); } else { lines.push('  Prioridades altas (Impacto 4-5): Ninguna identificada.'); }
+  if (medium.length) { lines.push('  Impacto medio (Impacto 3):'); medium.forEach(mm => lines.push(`   • ${mm.label} (Impacto ${mm.score})`)); }
+  if (low.length) { lines.push('  Impacto bajo (Impacto 1-2):'); low.forEach(ll => lines.push(`   • ${ll.label} (Impacto ${ll.score})`)); }
+  lines.push('');
+  lines.push('3) Recomendaciones sintetizadas:');
+  if (high.length) high.forEach(hh => lines.push(`- ${hh.label}: Priorizar acciones de mitigación y seguimiento (Impacto ${hh.score}).`));
+  else lines.push('- No se detectaron prioridades altas; mantener monitoreo regular.');
+  if (medium.length) lines.push('- Impacto medio: validar acciones tácticas y monitorizar indicadores clave.');
+  if (low.length) lines.push('- Impacto bajo: registrar observaciones y revisar periódicamente; baja prioridad operativa.');
+  lines.push('');
+  lines.push('4) Sugerencias para mejorar las observaciones:');
+  reviews.forEach(r => {
+    if (!r.suggestions.length) { lines.push(`- ${r.label}: observación en buen estado.`); return; }
+    lines.push(`- ${r.label}:`);
+    r.suggestions.forEach(s => lines.push(`   [${s.severity}] ${s.msg}`));
+  });
+  lines.push('');
+  lines.push('5) Observaciones finales:');
+  lines.push('- Para un informe completo, exporte a PDF o copie este resumen y adjunte fuentes/evidencias relevantes.');
+
+  return { html: h.join('\n'), text: lines.join('\n') };
+}
+
+function renderOutput(analysis) {
   const out = get('#output');
-  out.textContent = text;
+  if (!analysis || !analysis.html) { out.innerHTML = ''; return; }
+  out.innerHTML = analysis.html;
 }
 
 function generatePDF(filename, data, analysisText) {
@@ -422,6 +505,8 @@ function copyToClipboard(text) {
   }
 }
 
+let currentSummary = '';
+
 function bind() {
   const genBtn = get('#generateBtn');
   const copyBtn = get('#copyBtn');
@@ -434,13 +519,13 @@ function bind() {
   const closeHelp = get('#closeHelp');
 
   genBtn.addEventListener('click', ()=>{
-    const data = readInputs();
-    const text = summarize(data);
-    renderOutput(text);
+    const analysis = generateAnalysis(readInputs());
+    currentSummary = analysis.text;
+    renderOutput(analysis);
   });
 
   copyBtn.addEventListener('click', async ()=>{
-    const txt = get('#output').textContent || '';
+    const txt = currentSummary;
     if(!txt) return;
     await copyToClipboard(txt);
     copyBtn.textContent = 'Copiado ✓';
@@ -449,16 +534,15 @@ function bind() {
 
   downloadBtn.addEventListener('click', ()=>{
     const data = readInputs();
-    const txt = get('#output').textContent || '';
-    if(!txt) return;
-    generatePDF('pestel_report.pdf', data, txt);
+    if(!currentSummary) return;
+    generatePDF('pestel_report.pdf', data, currentSummary);
   });
 
   // Save analysis data as JSON
   if (saveJsonBtn) {
     saveJsonBtn.addEventListener('click', ()=>{
       const data = readInputs();
-      const summary = get('#output').textContent || summarize(data);
+      const summary = currentSummary || generateAnalysis(data).text;
       const payload = {
         generatedAt: new Date().toISOString(),
         app: 'PESTEL_Sim',
@@ -486,7 +570,8 @@ function bind() {
     // reset inputs to defaults
     getAll('.score').forEach(s=>s.value = 3);
     getAll('.note').forEach(t=>t.value = '');
-    renderOutput('');
+    currentSummary = '';
+    renderOutput(null);
   });
 
   // Sample data button: fills inputs with example scores and notes
@@ -506,8 +591,9 @@ function bind() {
       if(n) n.value = examples[k].note;
     });
     // Update output immediately
-    const txt = summarize(readInputs());
-    renderOutput(txt);
+    const analysis = generateAnalysis(readInputs());
+    currentSummary = analysis.text;
+    renderOutput(analysis);
   });
 
   // Load JSON button: trigger file selection and parse analysis payload
@@ -538,8 +624,9 @@ function bind() {
               }
             });
             // Populate output: prefer provided summary, otherwise regenerate
-            const summaryText = (payload.summary && typeof payload.summary === 'string') ? payload.summary : summarize(readInputs());
-            renderOutput(summaryText);
+            const provided = (payload.summary && typeof payload.summary === 'string') ? payload.summary : null;
+            if (provided) { currentSummary = provided; renderOutput({ html: `<pre class="raw">${provided.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>` }); }
+            else { const analysis = generateAnalysis(readInputs()); currentSummary = analysis.text; renderOutput(analysis); }
             // quick UI feedback
             const prev = loadJsonBtn.textContent;
             loadJsonBtn.textContent = 'Cargado ✓';
@@ -594,9 +681,9 @@ function bind() {
     el.addEventListener('input', ()=>{
       clearTimeout(timeout);
       timeout = setTimeout(()=>{
-        const data = readInputs();
-        const text = summarize(data);
-        renderOutput(text);
+        const analysis = generateAnalysis(readInputs());
+        currentSummary = analysis.text;
+        renderOutput(analysis);
       }, 650);
     });
   });
