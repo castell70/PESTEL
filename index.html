@@ -29,35 +29,62 @@
 
     <!-- Help panel (hidden by default) -->
     <aside id="helpPanel" class="help-panel" role="dialog" aria-hidden="true">
-      <h3>Método PESTEL - Resumen</h3>
-      <p style="margin:6px 0 10px 0;font-size:13px;color:var(--text)">
-        PESTEL es un marco para analizar factores externos que afectan a una organización: 
-        Político, Económico, Social, Tecnológico, Ecológico y Legal. Ayuda a identificar riesgos, 
-        oportunidades y prioridades estratégicas fuera del control directo de la empresa.
-      </p>
+      <h3>Ayuda — PESTEL_Sim</h3>
 
-      <h4 style="margin:6px 0 6px 0;font-size:13px;font-weight:700">Cómo usar esta aplicación</h4>
-      <ul style="margin:0 0 10px 18px;font-size:13px;color:var(--text);line-height:1.35">
-        <li>Para cada factor, asigne un Impacto de 1 (bajo) a 5 (alto) según su repercusión.</li>
-        <li>Use el campo de Descripción/Observaciones para anotar evidencias, fuentes o acciones recomendadas.</li>
-        <li>Pulse "Generar" para crear un resumen estructurado; use "Datos de ejemplo" para cargar un caso de demostración.</li>
-        <li>Puede copiar o descargar el análisis para compartirlo con su equipo.</li>
+      <h4 class="h-title">Objetivo de la herramienta</h4>
+      <p>
+        PESTEL_Sim es un simulador para aplicar el análisis PESTEL a una organización.
+        PESTEL es un marco estratégico que estudia los factores externos que pueden
+        afectar a la empresa y que están fuera de su control directo:
+      </p>
+      <ul>
+        <li><strong>Político:</strong> políticas, estabilidad del gobierno, regulaciones del estado.</li>
+        <li><strong>Económico:</strong> inflación, tipos de interés, crecimiento, poder adquisitivo.</li>
+        <li><strong>Social:</strong> demografía, cultura, hábitos de consumo y tendencias.</li>
+        <li><strong>Tecnológico:</strong> innovación, automatización, adopción tecnológica.</li>
+        <li><strong>Ecológico:</strong> normativa ambiental, sostenibilidad, cambio climático.</li>
+        <li><strong>Legal:</strong> leyes, protección de datos, marco normativo.</li>
       </ul>
-
-      <h4 style="margin:6px 0 6px 0;font-size:13px;font-weight:700">Ejemplo</h4>
-      <p style="margin:6px 0 10px 0;font-size:13px;color:var(--text)">
-        Ejemplo rápido: si la economía muestra inflación alta (Económico = 5) y la tecnología de competidores avanza rápido (Tecnológico = 4),
-        la aplicación priorizará esas áreas y sugerirá medidas de mitigación como revisión de precios, cobertura financiera y estrategia tecnológica.
+      <p>
+        Su propósito es identificar riesgos, oportunidades y prioridades estratégicas, y
+        ordenarlos según su impacto para apoyar la toma de decisiones.
       </p>
 
-      <p style="margin:6px 0 10px 0;font-size:12px;color:rgba(17,18,20,0.6)">
-        Consejo: rellene al menos los puntajes antes de generar para obtener un resumen significativo.
+      <h4 class="h-title">Uso correcto</h4>
+      <ol>
+        <li>Para cada factor, asigne un <strong>Impacto de 1 (bajo) a 5 (alto)</strong> según su repercusión.</li>
+        <li>Complete la <strong>Descripción / Observaciones</strong> con evidencias, fuentes o acciones recomendadas. Mientras más específica y sustentada sea, mejor será la evaluación de calidad.</li>
+        <li>Pulse <strong>Generar</strong> para crear el resumen estructurado. El análisis incluye un indicador de <strong>calidad</strong> y <strong>sugerencias</strong> para mejorar cada observación.</li>
+        <li>Revise los resultados, aplique las sugerencias y vuelva a generar si lo desea.</li>
+        <li>Comparta el resultado con su equipo mediante copia, PDF o JSON.</li>
+      </ol>
+
+      <h4 class="h-title">Descripción de las opciones</h4>
+      <ul>
+        <li><strong>Datos de ejemplo:</strong> carga un caso de demostración con puntajes y observaciones precargadas.</li>
+        <li><strong>Generar:</strong> produce el resumen del análisis con prioridades, calidad y recomendaciones.</li>
+        <li><strong>Copiar:</strong> copia el texto del análisis al portapapeles para pegarlo donde quiera.</li>
+        <li><strong>Generar PDF:</strong> descarga un informe profesional (con resumen, cuadro de impactos, análisis por factor, recomendaciones, tabla y gráfica).</li>
+        <li><strong>Guardar JSON:</strong> descarga los datos y el resumen en un archivo JSON para respaldarlos.</li>
+        <li><strong>Cargar JSON:</strong> restaura un análisis previamente guardado desde un archivo JSON.</li>
+        <li><strong>Reiniciar (⟲):</strong> restablece los puntajes y borra las observaciones.</li>
+      </ul>
+      <p class="h-note">
+        La aplicación revisa automáticamente cada observación y sugiere mejoras (agregar cifras,
+        fuentes o implicaciones) para que el análisis sea más completo y confiable.
+      </p>
+
+      <h4 class="h-title">Ejemplo</h4>
+      <p>
+        Si la economía muestra inflación alta (Económico = 5) y los competidores adoptan IA
+        rápidamente (Tecnológico = 4), la aplicación priorizará esas áreas y sugerirá medidas de
+        mitigación como revisión de precios, cobertura financiera y estrategia tecnológica.
       </p>
 
       <button id="closeHelp" class="secondary" style="width:100%;">Cerrar</button>
 
-      <div style="font-size:12px;color:rgba(17,18,20,0.6);margin-top:10px">
-        © Carlos Alfredo Castillo Flores - ITCPO - 2026
+      <div class="h-copyright">
+        © 2026 Carlos Alfredo Castillo Flores — ITCPO. Todos los derechos reservados.
       </div>
     </aside>
 

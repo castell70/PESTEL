@@ -23,7 +23,7 @@ body{
 
 #app{
   width:100%;
-  max-width:980px;
+  max-width:1280px;
   height:100%;
   background:transparent;
   display:flex;
@@ -88,8 +88,8 @@ body{
 /* Main layout: grid with matrix and panel */
 .grid{
   display:grid;
-  grid-template-columns: 1fr 360px;
-  gap:12px;
+  grid-template-columns: 1fr 460px;
+  gap:14px;
   align-items:start;
   height: calc(100% - 56px - 12px);
 }
@@ -106,7 +106,7 @@ body{
   border-radius:10px;
   padding:12px;
   display:grid;
-  grid-template-columns: 140px 88px 1fr;
+  grid-template-columns: 160px 96px 1fr;
   gap:8px;
   align-items:start;
   overflow:auto;
@@ -135,8 +135,8 @@ body{
 }
 .note{
   width:100%;
-  min-height:56px;
-  max-height:120px;
+  min-height:96px;
+  max-height:200px;
   padding:8px;
   border-radius:8px;
   resize:none;
@@ -281,9 +281,9 @@ body{
   position:fixed;
   right:18px;
   bottom:86px;
-  width:380px;
+  width:460px;
   max-width: calc(100% - 40px);
-  max-height:60vh;
+  max-height:70vh;
   background:var(--card);
   border-radius:10px;
   padding:12px;
@@ -304,3 +304,10 @@ body{
 }
 .help-panel h3{margin:0 0 8px 0;font-size:15px}
 .help-panel ul{margin:0;padding-left:18px;font-size:13px;color:var(--text);line-height:1.35}
+.help-panel ol{margin:0;padding-left:18px;font-size:13px;color:var(--text);line-height:1.5}
+.help-panel p{margin:6px 0 10px 0;font-size:13px;color:var(--text);line-height:1.5}
+.help-panel ul li{margin-bottom:4px}
+.help-panel ol li{margin-bottom:6px}
+.h-title{margin:12px 0 6px 0;font-size:13px;font-weight:700;color:var(--text)}
+.h-note{margin:8px 0 10px 0;padding:8px;background:rgba(6,95,70,0.08);border-radius:8px;font-size:12.5px;color:var(--accent);line-height:1.45}
+.h-copyright{margin-top:14px;padding-top:10px;border-top:1px solid #eef0f2;font-size:12px;color:rgba(17,18,20,0.6);text-align:center}

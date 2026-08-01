@@ -196,297 +196,382 @@ function renderOutput(analysis) {
 }
 
 function generatePDF(filename, data, analysisText) {
-  // Enhanced, professional multi-section PDF with a framed "cuadro de factores", table summary and chart
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-  const margin = 48;
+  const margin = 40;
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const usableW = pageW - margin * 2;
   let y = margin;
+  const FOOTER_Y = pageH - 36;
+
+  const LETTER = { political: 'P', economic: 'E', social: 'S', tech: 'T', env: 'EA', legal: 'L' };
+  const FCOLOR = { political: [31,119,180], economic: [44,160,44], social: [214,40,40], tech: [148,103,189], env: [140,86,75], legal: [110,118,129] };
+
+  const reviews = FACTORS.map(f => {
+    const entry = data[f.key] || {};
+    const suggestions = reviewNote(f.label, entry.note);
+    const quality = factorQuality(suggestions);
+    const level = entry.score === null ? 'Sin dato' : entry.score >= 4 ? 'Alto' : entry.score === 3 ? 'Medio' : 'Bajo';
+    return { ...entry, key: f.key, suggestions, quality, level };
+  });
+  const overall = Math.round(reviews.reduce((s, r) => s + r.quality, 0) / Math.max(1, reviews.length));
+  const scored = reviews.filter(r => r.score !== null).sort((a, b) => b.score - a.score);
+  const high = scored.filter(r => r.score >= 4);
+  const medium = scored.filter(r => r.score === 3);
+  const low = scored.filter(r => r.score <= 2);
+  const withoutScore = reviews.filter(r => r.score === null);
+
+  const qualityColor = pct => pct >= 80 ? [6, 95, 70] : pct >= 50 ? [180, 120, 23] : [185, 30, 30];
 
   const setTitleBar = () => {
-    doc.setFillColor(7, 73, 61);
+    doc.setFillColor(5, 73, 61);
     doc.rect(0, 0, pageW, 64, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
+    doc.setFontSize(15);
     doc.setFont(undefined, 'bold');
-    doc.text('Informe PESTEL', pageW / 2, 40, { align: 'center' });
+    doc.text('Informe de Análisis PESTEL', pageW / 2, 38, { align: 'center' });
     doc.setFontSize(9);
-    doc.text('Powered by ITCPO', margin, 52);
+    doc.setFont(undefined, 'normal');
+    doc.text('Planificación Estratégica — ITCPO', margin, 52);
+    doc.setTextColor(120);
+    doc.setFontSize(8);
+    doc.text('© Carlos Alfredo Castillo Flores - ITCPO - 2026', margin, FOOTER_Y);
+    doc.text('Página ' + doc.internal.getNumberOfPages(), pageW - margin, FOOTER_Y, { align: 'right' });
     doc.setTextColor(17, 18, 20);
     y = 86;
   };
 
   const addWrapped = (text, opts = {}) => {
     const fontSize = opts.fontSize || 11;
+    const leading = fontSize * 1.28;
+    const color = opts.color || [17, 18, 20];
     doc.setFontSize(fontSize);
+    doc.setFont(undefined, opts.bold ? 'bold' : 'normal');
+    doc.setTextColor(color[0], color[1], color[2]);
     const split = doc.splitTextToSize(text, usableW);
+    if (y + split.length * leading > pageH - margin - 60) { doc.addPage(); setTitleBar(); }
     doc.text(split, margin, y);
-    y += split.length * (fontSize * 1.25);
-    if (y > pageH - margin - 80) {
-      doc.addPage();
-      setTitleBar();
-    }
+    y += split.length * leading + (opts.gap || 0);
   };
 
-  // Header
+  const ensureSpace = needed => {
+    if (y + needed > pageH - margin - 60) { doc.addPage(); setTitleBar(); }
+  };
+
+  const drawQualityBar = (x, barY, w, pct) => {
+    const track = Math.max(0, Math.min(100, pct));
+    const c = qualityColor(pct);
+    doc.setFillColor(236, 238, 240);
+    doc.roundedRect(x, barY, w, 8, 4, 4, 'F');
+    doc.setFillColor(c[0], c[1], c[2]);
+    doc.roundedRect(x, barY, Math.max(2, w * track / 100), 8, 4, 4, 'F');
+  };
+
+  const sectionTitle = (num, text) => {
+    ensureSpace(30);
+    doc.setFillColor(245, 245, 246);
+    doc.roundedRect(margin - 4, y - 11, usableW + 8, 24, 5, 5, 'F');
+    doc.setFontSize(12.5);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(5, 73, 61);
+    doc.text(num + '.  ' + text, margin, y);
+    y += 24;
+  };
+
+  // ============ PORTADA / RESUMEN EJECUTIVO ============
   setTitleBar();
 
-  // Document meta
-  doc.setFont(undefined, 'normal');
-  addWrapped(`Fecha de generación: ${new Date().toLocaleString()}`, { fontSize: 10 });
-  addWrapped(`Generado por: PESTEL_Sim — Copy Rigth Carlos Alfredo Castillo Flores - ITCPO - 2026`, { fontSize: 10 });
-  y += 4;
+  // Meta info block
+  addWrapped('Fecha de generación: ' + new Date().toLocaleString(), { fontSize: 10, gap: 2 });
+  addWrapped('Organización analizada: ' + (data.org || '_____________________'), { fontSize: 10, gap: 2 });
+  addWrapped('Herramienta: PESTEL_Sim (ITCPO) — Autores: Carlos Alfredo Castillo Flores', { fontSize: 10, gap: 6 });
 
-  // Executive summary (concise)
+  // ---- Resumen ejecutivo PESTEL ----
+  sectionTitle(1, 'Resumen PESTEL');
+
+  // Global quality banner
+  const gx = margin;
+  doc.setFillColor(250, 250, 251);
+  doc.setDrawColor(230);
+  doc.roundedRect(gx - 6, y - 12, usableW + 12, 46, 6, 6, 'FD');
+  doc.setFontSize(10);
   doc.setFont(undefined, 'bold');
-  addWrapped('1. Resumen ejecutivo', { fontSize: 12 });
+  doc.setTextColor(17, 18, 20);
+  doc.text('Calidad promedio de las descripciones', gx, y + 4);
+  const gc = qualityColor(overall);
+  doc.setTextColor(gc[0], gc[1], gc[2]);
+  doc.setFontSize(15);
+  doc.text(overall + '%', gx + usableW, y, { align: 'right' });
+  drawQualityBar(gx, y + 10, usableW, overall);
+  const overallLabel = overall >= 80 ? 'Excelente' : overall >= 60 ? 'Buena' : overall >= 40 ? 'Aceptable' : 'Baja';
+  doc.setFontSize(9);
   doc.setFont(undefined, 'normal');
-  addWrapped((analysisText && analysisText.split('\n').slice(0,6).join(' ')) || 'No hay resumen disponible. Complete los puntajes y notas para generar el análisis.', { fontSize: 11 });
-  y += 6;
+  doc.setTextColor(120);
+  doc.text('Nivel de detalle general: ' + overallLabel + '. Revise las sugerencias de cada factor para mejorar las observaciones.', gx, y + 26);
+  y += 48;
 
-  // Small framed "cuadro de factores" for quick visualization
-  // Prepare a compact grid with factor labels and large impact numbers
+  // Executive summary paragraph
+  const highNames = high.map(f => f.label).join(', ');
+  let exec = 'El análisis evaluó los seis factores PESTEL (Político, Económico, Social, Tecnológico, Ecológico y Legal), clasificando su impacto para la organización y valorando la calidad de las descripciones registradas. ';
+  exec += high.length
+    ? 'Se identificaron ' + high.length + ' factor' + (high.length === 1 ? '' : 'es') + ' de prioridad alta (impacto 4-5): ' + highNames + '. '
+    : 'No se identificaron factores de prioridad alta (impacto 4-5). ';
+  if (medium.length) exec += medium.length + ' factor' + (medium.length === 1 ? '' : 'es') + ' de impacto medio requiere(n) seguimiento táctico: ' + medium.map(f => f.label).join(', ') + '. ';
+  if (withoutScore.length) exec += 'Sin información para: ' + withoutScore.map(f => f.label).join(', ') + '. ';
+  exec += 'La calidad promedio de las descripciones alcanza ' + overall + '%, lo que indica un nivel de sustento ' + overallLabel.toLowerCase() + '.';
+  addWrapped(exec, { fontSize: 10.5, gap: 10 });
+
+  // PESTEL dashboard: 3 columns x 2 rows
+  addWrapped('Panorama de factores — Impacto y calidad', { fontSize: 11, bold: true, gap: 6 });
+  const cols = 3;
+  const cellW = usableW / cols;
+  const cellH = 64;
+  const cellGap = 8;
+  ensureSpace(2 * cellH + 30);
+  reviews.forEach((r, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const cx = margin + col * cellW;
+    const cy = y + row * (cellH + cellGap);
+    const fc = FCOLOR[r.key];
+    doc.setFillColor(250, 250, 251);
+    doc.setDrawColor(228);
+    doc.roundedRect(cx, cy, cellW - 4, cellH, 5, 5, 'FD');
+    // Letter badge
+    doc.setFillColor(fc[0], fc[1], fc[2]);
+    doc.roundedRect(cx + 6, cy + 6, 22, 22, 4, 4, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text(LETTER[r.key], cx + 17, cy + 20, { align: 'center' });
+    doc.setTextColor(17, 18, 20);
+    doc.setFontSize(10);
+    doc.text(r.label, cx + 34, cy + 16);
+    const impactText = r.score === null ? 'N/D' : r.score + ' (' + r.level + ')';
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'bold');
+    const impactCol = r.score === null ? [140, 140, 140] : qualityColor(r.quality);
+    doc.setTextColor(impactCol[0], impactCol[1], impactCol[2]);
+    doc.text('Impacto: ' + impactText, cx + 34, cy + 27);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(120);
+    doc.setFontSize(8);
+    doc.text('Calidad: ' + r.quality + '%', cx + 6, cy + 44);
+    drawQualityBar(cx + 6, cy + 48, cellW - 22, r.quality);
+    doc.setFontSize(8);
+    doc.setTextColor(90);
+    doc.setFont(undefined, 'normal');
+    const brief = (r.note || 'Sin observaciones.').replace(/\s+/g, ' ').slice(0, 48) + ((r.note || '').length > 48 ? '…' : '');
+    const briefLines = doc.splitTextToSize(brief, cellW - 16);
+    doc.setTextColor(110);
+    doc.text(briefLines.slice(0, 1), cx + 6, cy + 58);
+  });
+  y += 2 * (cellH + cellGap) + 14;
+
+  // ============ 2. PRIORIDADES ESTRATÉGICAS ============
+  sectionTitle(2, 'Prioridades estratégicas');
+  if (high.length) {
+    addWrapped('Prioridad alta (impacto 4-5): ' + high.map(f => f.label + ' (' + f.score + ')').join(' · '), { fontSize: 10, bold: true, color: [6, 95, 70], gap: 4 });
+  } else {
+    addWrapped('Prioridad alta: ninguna. Mantener monitoreo continuo del entorno.', { fontSize: 10, gap: 4 });
+  }
+  if (medium.length) addWrapped('Prioridad media (impacto 3): ' + medium.map(f => f.label + ' (' + f.score + ')').join(' · '), { fontSize: 10, color: [150, 110, 30], gap: 4 });
+  if (low.length) addWrapped('Prioridad baja (impacto 1-2): ' + low.map(f => f.label + ' (' + f.score + ')').join(' · '), { fontSize: 10, color: [120, 120, 130], gap: 2 });
+  if (withoutScore.length) addWrapped('Sin dato de impacto: ' + withoutScore.map(f => f.label).join(', '), { fontSize: 10, color: [140, 140, 140], gap: 2 });
+
+  // ============ 3. CUADRO DE IMPACTOS ============
+  sectionTitle(3, 'Cuadro de factores — Impactos');
+  ensureSpace(150);
   const boxW = usableW;
   const boxX = margin;
-  const boxY = y;
   const rows = 2;
-  const cols = 3;
-  const cellW = boxW / cols;
-  const cellH = 44;
-  const headerH = 16;
-
-  // Add a title for the cuadro
-  doc.setFont(undefined, 'bold');
-  doc.setFontSize(12);
-  doc.text('Cuadro de factores — Impactos', boxX, boxY);
-  y += 12;
-
-  // Draw framed box background
-  const cuadroY = y + 6;
-  doc.setDrawColor(200);
+  const cols2 = 3;
+  const cellW2 = boxW / cols2;
+  const cellH2 = 48;
+  const headerH2 = 18;
+  const cuadroY = y + 4;
   doc.setFillColor(250, 250, 251);
-  doc.roundedRect(boxX - 4, cuadroY - 6, boxW + 8, rows * cellH + headerH + 12, 6, 6, 'F');
-  doc.setLineWidth(0.8);
   doc.setDrawColor(220);
-  doc.roundedRect(boxX - 4, cuadroY - 6, boxW + 8, rows * cellH + headerH + 12, 6, 6);
-
-  // Draw grid and populate cells
-  const factorKeys = Object.keys(data);
+  doc.roundedRect(boxX - 6, cuadroY - 6, boxW + 12, rows * cellH2 + headerH2 + 12, 6, 6, 'F');
+  doc.setLineWidth(0.8);
+  doc.roundedRect(boxX - 6, cuadroY - 6, boxW + 12, rows * cellH2 + headerH2 + 12, 6, 6);
+  doc.setFillColor(245, 245, 246);
+  doc.rect(boxX - 6, cuadroY - 6, boxW + 12, headerH2 + 6, 'F');
   doc.setFontSize(10);
   doc.setFont(undefined, 'bold');
-  // header area background
-  doc.setFillColor(245, 245, 246);
-  doc.rect(boxX - 4, cuadroY - 6, boxW + 8, headerH + 6, 'F');
-  doc.setTextColor(34,34,34);
+  doc.setTextColor(34, 34, 34);
   doc.text('Factor', boxX, cuadroY + 6);
-
-  // populate each cell
-  factorKeys.forEach((k, idx) => {
-    const col = idx % cols;
-    const row = Math.floor(idx / cols);
-    const xCell = boxX + col * cellW;
-    const yCell = cuadroY + headerH + row * cellH;
-    // cell border
+  reviews.forEach((r, idx) => {
+    const col = idx % cols2;
+    const row = Math.floor(idx / cols2);
+    const xCell = boxX + col * cellW2;
+    const yCell = cuadroY + headerH2 + row * cellH2;
     doc.setDrawColor(230);
-    doc.rect(xCell, yCell, cellW, cellH, 'S');
-
-    const f = data[k];
-    // Factor label (small)
+    doc.rect(xCell, yCell, cellW2, cellH2, 'S');
     doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
-    doc.setTextColor(17,17,17);
-    doc.text(f.label, xCell + 8, yCell + 14);
-    // Impact big number centered vertically
-    const impactLabel = (f.score === null ? 'N/D' : String(f.score));
+    doc.setTextColor(17, 17, 17);
+    doc.text(r.label, xCell + 8, yCell + 14);
+    const impactLabel = r.score === null ? 'N/D' : String(r.score);
     doc.setFontSize(20);
     doc.setFont(undefined, 'bold');
-    // color by severity
-    if (f.score >= 4) doc.setTextColor(6,95,70);
-    else if (f.score === 3) doc.setTextColor(102,102,102);
-    else doc.setTextColor(140,140,140);
-    // place impact number near right side of cell
-    doc.text(impactLabel, xCell + cellW - 12, yCell + cellH / 2 + 6, { align: 'right' });
-  });
-
-  // advance y below cuadro
-  y = cuadroY + headerH + rows * cellH + 18;
-
-  // Detailed sections per factor with clear headings
-  doc.setFont(undefined, 'bold');
-  addWrapped('2. Análisis detallado por factor', { fontSize: 12 });
-  doc.setFont(undefined, 'normal');
-  Object.keys(data).forEach((k) => {
-    const f = data[k];
-    // Heading line
-    doc.setFont(undefined, 'bold');
-    addWrapped(`${f.label} — Impacto: ${f.score === null ? 'N/D' : f.score}`, { fontSize: 11 });
+    const impactCol = r.score === null ? [140, 140, 140] : qualityColor(r.quality);
+    doc.setTextColor(impactCol[0], impactCol[1], impactCol[2]);
+    doc.text(impactLabel, xCell + cellW2 - 12, yCell + cellH2 / 2 + 6, { align: 'right' });
+    doc.setFontSize(8);
     doc.setFont(undefined, 'normal');
-    addWrapped(f.note || 'Sin observaciones.', { fontSize: 11 });
-    y += 4;
+    doc.setTextColor(130);
+    doc.text('Calidad: ' + r.quality + '%  (' + r.level + ')', xCell + 8, yCell + cellH2 - 6);
+  });
+  y = cuadroY + headerH2 + rows * cellH2 + 20;
+
+  // ============ 4. ANÁLISIS DETALLADO POR FACTOR ============
+  sectionTitle(4, 'Análisis detallado por factor');
+  reviews.forEach(r => {
+    ensureSpace(90);
+    const fc = FCOLOR[r.key];
+    doc.setFillColor(fc[0], fc[1], fc[2]);
+    doc.roundedRect(margin - 4, y - 12, 5, 5, 2, 2, 'F');
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(17, 18, 20);
+    addWrapped(r.label.toUpperCase() + ' (' + LETTER[r.key] + ') — Impacto: ' + (r.score === null ? 'N/D' : r.score) + ' | Prioridad: ' + r.level + ' | Calidad: ' + r.quality + '%', { fontSize: 11, bold: true, gap: 2 });
+    doc.setFont(undefined, 'normal');
+    addWrapped('Observación: ' + (r.note || 'Sin observaciones.'), { fontSize: 10.5, gap: 2 });
+    if (r.suggestions.length) {
+      addWrapped('Sugerencias para mejorar la descripción:', { fontSize: 10, bold: true, gap: 2 });
+      r.suggestions.forEach(s => {
+        const sevColor = s.severity === 'alta' ? [185, 30, 30] : s.severity === 'media' ? [150, 110, 30] : [6, 95, 70];
+        addWrapped('  • [' + s.severity + '] ' + s.msg, { fontSize: 9.5, color: sevColor });
+      });
+    }
+    y += 6;
   });
 
-  // Recommendations section
-  y += 6;
-  doc.setFont(undefined, 'bold');
-  addWrapped('3. Recomendaciones', { fontSize: 12 });
-  doc.setFont(undefined, 'normal');
-
-  const scored = Object.values(data).filter(d => d.score !== null).sort((a, b) => b.score - a.score);
-  const high = scored.filter(x => x.score >= 4);
-  const medium = scored.filter(x => x.score === 3);
-  const low = scored.filter(x => x.score <= 2);
-
+  // ============ 5. RECOMENDACIONES ============
+  sectionTitle(5, 'Recomendaciones');
   if (high.length) {
-    addWrapped('Prioridades altas (Impacto 4-5):', { fontSize: 11 });
-    high.forEach(h => addWrapped(`• ${h.label} (Impacto ${h.score}): ${h.note || 'Sin observaciones'}`, { fontSize: 10 }));
+    addWrapped('Prioridades altas (Impacto 4-5):', { fontSize: 11, bold: true, gap: 2 });
+    high.forEach(h => addWrapped('• ' + h.label + ' (Impacto ' + h.score + '): ' + (h.note || 'Sin observaciones'), { fontSize: 10, gap: 2 }));
   } else {
-    addWrapped('- No se identifican prioridades altas. Mantener monitoreo continuo.', { fontSize: 10 });
+    addWrapped('- No se identifican prioridades altas. Mantener monitoreo continuo del entorno.', { fontSize: 10, gap: 2 });
   }
-  if (medium.length) addWrapped('- Impacto medio: validar acciones tácticas y monitorizar indicadores clave.', { fontSize: 10 });
-  if (low.length) addWrapped('- Impacto bajo: documentación y revisión periódica.', { fontSize: 10 });
-
-  // Insert a page break if needed before summary table and chart
-  if (y > pageH - margin - 220) {
-    doc.addPage();
-    setTitleBar();
+  if (medium.length) addWrapped('- Impacto medio: validar acciones tácticas y monitorear indicadores clave.', { fontSize: 10, gap: 2 });
+  if (low.length) addWrapped('- Impacto bajo: documentar y revisar periódicamente.', { fontSize: 10, gap: 2 });
+  if (withoutScore.length) addWrapped('- Completar el impacto de: ' + withoutScore.map(f => f.label).join(', ') + '.', { fontSize: 10, gap: 2 });
+  if (reviews.some(r => r.quality < 80)) {
+    addWrapped('- Mejorar la calidad de las descripciones con calidad baja: agregar cifras, fuentes y contexto para reforzar el análisis.', { fontSize: 10, gap: 2 });
   }
 
-  // Summary section with table
-  y += 8;
-  doc.setFont(undefined, 'bold');
-  addWrapped('4. Resumen consolidado', { fontSize: 12 });
-  doc.setFont(undefined, 'normal');
-  y += 6;
-
-  // Table header
+  // ============ 6. RESUMEN CONSOLIDADO (tabla) ============
+  sectionTitle(6, 'Resumen consolidado');
   const tableX = margin;
-  const tableY = y;
-  // Adjusted column widths: more space for observations (notes)
-  const col1W = usableW * 0.35; // Factor
-  const col2W = usableW * 0.10; // Impacto
-  const col3W = usableW * 0.55; // Observaciones (resumen)
-  const baseRowH = 18;
-  const paddingY = 6;
+  const c1 = usableW * 0.13; // Factor
+  const c2 = usableW * 0.10; // Impacto
+  const c3 = usableW * 0.12; // Prioridad
+  const c4 = usableW * 0.10; // Calidad
+  const c5 = usableW * 0.55; // Observaciones
+  const baseRowH = 20;
+  const paddingY = 8;
 
+  const headerY = y;
   doc.setFillColor(245, 245, 246);
-  doc.rect(tableX, tableY, usableW, baseRowH + paddingY, 'F');
-  doc.setFontSize(10);
+  doc.rect(tableX, headerY, usableW, baseRowH, 'F');
+  doc.setDrawColor(220);
+  doc.setLineWidth(0.6);
+  doc.rect(tableX, headerY, usableW, baseRowH, 'S');
+  doc.setFontSize(9);
   doc.setFont(undefined, 'bold');
-  doc.text('Factor', tableX + 6, tableY + 12);
-  doc.text('Impacto', tableX + col1W + 6, tableY + 12);
-  doc.text('Observaciones (resumen)', tableX + col1W + col2W + 6, tableY + 12);
-  y = tableY + baseRowH + paddingY;
+  doc.setTextColor(34, 34, 34);
+  doc.text('Factor', tableX + 5, headerY + 13);
+  doc.text('Impacto', tableX + c1 + 5, headerY + 13);
+  doc.text('Prioridad', tableX + c1 + c2 + 5, headerY + 13);
+  doc.text('Calidad', tableX + c1 + c2 + c3 + 5, headerY + 13);
+  doc.text('Observaciones', tableX + c1 + c2 + c3 + c4 + 5, headerY + 13);
+  y = headerY + baseRowH;
 
   doc.setFont(undefined, 'normal');
-  Object.keys(data).forEach((k, idx) => {
-    const f = data[k];
-    const noteFull = (f.note || 'Sin observaciones').replace(/\s+/g, ' ');
-    // Prepare wrapped text for observations column
-    const noteLines = doc.splitTextToSize(noteFull, col3W - 10);
-    const factorLines = doc.splitTextToSize(f.label, col1W - 10);
-
-    // Determine row height based on the tallest cell (factor label or note)
+  reviews.forEach((r, idx) => {
+    const noteFull = (r.note || 'Sin observaciones').replace(/\s+/g, ' ');
+    const noteLines = doc.splitTextToSize(noteFull, c5 - 10);
+    const factorLines = doc.splitTextToSize(r.label, c1 - 10);
     const linesCount = Math.max(noteLines.length, factorLines.length, 1);
-    const rowH = linesCount * 12 + paddingY; // 12pt per line + padding
+    const rowH = linesCount * 11 + paddingY;
 
-    // Add page if not enough space
-    if (y + rowH > pageH - margin - 120) {
+    if (y + rowH > pageH - margin - 60) {
       doc.addPage();
       setTitleBar();
-      y = margin + 20;
+      doc.setFontSize(9); doc.setFont(undefined, 'bold'); doc.setTextColor(34, 34, 34);
+      doc.text('Factor', tableX + 5, y + 12);
+      doc.text('Impacto', tableX + c1 + 5, y + 12);
+      doc.text('Prioridad', tableX + c1 + c2 + 5, y + 12);
+      doc.text('Calidad', tableX + c1 + c2 + c3 + 5, y + 12);
+      doc.text('Observaciones', tableX + c1 + c2 + c3 + c4 + 5, y + 12);
+      y += baseRowH;
     }
 
-    // row background alternating
-    if (idx % 2 === 0) {
-      doc.setFillColor(255, 255, 255);
-    } else {
-      doc.setFillColor(250, 250, 251);
-    }
+    doc.setFillColor(idx % 2 === 0 ? 255 : 250);
+    doc.setDrawColor(228);
     doc.rect(tableX, y, usableW, rowH, 'F');
-
-    // Draw cell contents with wrapping where needed
-    doc.setFontSize(10);
+    doc.rect(tableX, y, usableW, rowH, 'S');
+    doc.setFontSize(9);
     doc.setTextColor(17, 18, 20);
-    // Factor (may wrap)
-    doc.text(factorLines, tableX + 6, y + 12);
-    // Impact value centered vertically in that row area (left-aligned)
-    doc.text(f.score === null ? 'N/D' : String(f.score), tableX + col1W + 6, y + 12);
-    // Observations (wrapped)
-    doc.text(noteLines, tableX + col1W + col2W + 6, y + 12);
-
+    doc.text(factorLines, tableX + 5, y + 12);
+    doc.text(r.score === null ? 'N/D' : String(r.score), tableX + c1 + 5, y + 12);
+    const impactCol = r.score === null ? [140, 140, 140] : qualityColor(r.quality);
+    doc.setTextColor(impactCol[0], impactCol[1], impactCol[2]);
+    doc.text(r.level, tableX + c1 + c2 + 5, y + 12);
+    doc.setFont(undefined, 'bold');
+    doc.text(r.quality + '%', tableX + c1 + c2 + c3 + 5, y + 12);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(17, 18, 20);
+    doc.text(noteLines, tableX + c1 + c2 + c3 + c4 + 5, y + 12);
     y += rowH;
   });
 
-  // Chart: simple horizontal bar chart for scored factors (top 5)
+  // ============ 7. GRÁFICA DE IMPACTOS ============
   const chartTop = scored.slice(0, 6);
   if (chartTop.length) {
-    // Ensure space
-    if (y > pageH - margin - (chartTop.length * 28) - 120) {
-      doc.addPage();
-      setTitleBar();
-      y = margin + 20;
-    }
-    y += 12;
-    doc.setFont(undefined, 'bold');
-    addWrapped('5. Gráfica — Impactos principales', { fontSize: 12 });
-    y += 6;
-
+    ensureSpace(chartTop.length * 28 + 60);
+    sectionTitle(7, 'Gráfica — Impactos principales');
     const chartX = margin + 6;
     const chartW = usableW - 12;
-    const barMaxW = chartW * 0.65;
-    const labelArea = chartW * 0.30;
-    const chartStartY = y;
-    const barH = 14;
-    const gap = 10;
-
-    // Draw axis baseline
-    doc.setDrawColor(220);
-    doc.setLineWidth(0.5);
-
+    const barMaxW = chartW * 0.62;
+    const labelArea = chartW * 0.26;
+    const chartY0 = y;
+    const barH = 15;
+    const gap = 12;
     chartTop.forEach((f, i) => {
-      const rowY = chartStartY + (barH + gap) * i;
-      // label
+      const rowY = chartY0 + (barH + gap) * i;
       doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
       doc.setTextColor(34, 34, 34);
       doc.text(f.label, chartX, rowY + barH - 2);
-      // bar background
       const barX = chartX + labelArea;
       const value = f.score || 0;
       const w = (value / 5) * barMaxW;
-      doc.setFillColor(230, 243, 235);
+      const fc = qualityColor(f.quality);
+      doc.setFillColor(232, 240, 236);
       doc.rect(barX, rowY, barMaxW, barH, 'F');
-      // bar fill
-      doc.setFillColor(6, 95, 70);
+      doc.setFillColor(fc[0], fc[1], fc[2]);
       doc.rect(barX, rowY, w, barH, 'F');
-      // value label
-      doc.setTextColor(255, 255, 255);
       doc.setFontSize(9);
-      if (w > 22) {
-        doc.text(String(value), barX + w - 6, rowY + barH - 3, { align: 'right' });
-      } else {
-        doc.setTextColor(6, 95, 70);
-        doc.text(String(value), barX + w + 6, rowY + barH - 3);
-      }
+      doc.setFont(undefined, 'bold');
+      if (w > 22) { doc.setTextColor(255, 255, 255); doc.text(String(value), barX + w - 6, rowY + barH - 3, { align: 'right' }); }
+      else { doc.setTextColor(6, 95, 70); doc.text(String(value), barX + w + 6, rowY + barH - 3); }
     });
-
-    // advance y past chart
-    y = chartStartY + (barH + gap) * chartTop.length + 8;
+    y = chartY0 + (barH + gap) * chartTop.length + 10;
   }
 
-  // Final summary paragraph
-  y += 6;
-  doc.setFont(undefined, 'bold');
-  addWrapped('6. Conclusión', { fontSize: 12 });
-  doc.setFont(undefined, 'normal');
-  addWrapped('Este informe sintetiza los factores PESTEL introducidos. Priorice las áreas con impacto 4-5 y documente evidencia para apoyar decisiones. Exporte y comparta según sea necesario.', { fontSize: 11 });
+  // ============ 8. CONCLUSIÓN ============
+  sectionTitle(8, 'Conclusión');
+  let concl = 'Este informe sintetiza los factores PESTEL registrados y evalúa la calidad de las descripciones. ';
+  concl += 'Priorice las áreas con impacto 4-5, atienda las sugerencias para elevar la calidad de las observaciones con menor sustento y documente evidencia (cifras, fuentes, plazos) para apoyar las decisiones. ';
+  concl += 'Defina responsables y plazos para cada acción, y repita el análisis periódicamente para captar cambios del entorno.';
+  addWrapped(concl, { fontSize: 10.5 });
 
-  // Footer
-  const footerY = pageH - 36;
-  doc.setFontSize(9);
+  // ---- Footer final (asegurar presencia) ----
+  doc.setFontSize(8);
   doc.setTextColor(120);
-  doc.text('© Carlos Alfredo Castillo Flores - ITCPO - 2026', margin, footerY);
-  doc.setTextColor(17, 18, 20);
+  doc.text('© Carlos Alfredo Castillo Flores - ITCPO - 2026', margin, FOOTER_Y);
 
   doc.save(filename);
 }
